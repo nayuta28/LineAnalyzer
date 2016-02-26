@@ -1,18 +1,24 @@
 package lineanalyzer;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.HashMap;
+import java.util.List;
+
+import com.google.common.collect.Lists;
 
 public class LineAnalyzerMain {
 
 	private static HashMap<String, Integer> personMap = new HashMap<>();
 	private static String filePath;
 	private static String message;
+	private static List<String> allLines = Lists.newArrayList();
 	private static int totalCount = 0;
 	private static int messageCount = 0;
 	private static DecimalFormat dFormat = new DecimalFormat("###.##%");
@@ -35,27 +41,18 @@ public class LineAnalyzerMain {
 	}
 
 	private static void readFile(String filePath, String message) throws IOException {
-		File file = new File(filePath);
-		FileReader fileReader = new FileReader(file);
-		BufferedReader br = new BufferedReader(fileReader);
-		String read;
-
-		while (true) {
-			read = br.readLine();
-			if (read == null) {
-				break;
-			}
-
+		Path path = Paths.get(filePath);
+		allLines = Files.readAllLines(path, StandardCharsets.UTF_8);
+		for (String line : allLines) {
 			if (message == null) {
-				String[] splitWords = read.split("\\t");
+				String[] splitWords = line.split("\\t");
 				if (splitWords.length >= 3) {
 					countPersonTalk(splitWords);
 				}
 			} else {
-				countMessage(message, read);
+				countMessage(message, line);
 			}
 		}
-		br.close();
 	}
 
 	private static void countPersonTalk(String[] splitWords) {
