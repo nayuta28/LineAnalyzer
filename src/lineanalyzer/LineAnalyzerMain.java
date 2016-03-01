@@ -1,82 +1,84 @@
 package lineanalyzer;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
-
-import com.google.common.collect.Lists;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class LineAnalyzerMain {
 
-	private static HashMap<String, Integer> personMap = new HashMap<>();
-	private static String filePath;
-	private static String message;
-	private static List<String> allLines = Lists.newArrayList();
-	private static int totalCount = 0;
-	private static int messageCount = 0;
-	private static DecimalFormat dFormat = new DecimalFormat("###.##%");
+	private static Map<String, Long> memberCountMap = new LinkedHashMap<>();
+	private static Long totalTalkCount;
 
 	public static void main(String[] args) {
 
-		try (InputStreamReader inputStreamReader = new InputStreamReader(System.in);
-				BufferedReader bufferedReader = new BufferedReader(inputStreamReader)) {
+		try (Scanner scan = new Scanner(System.in)) {
+
 			System.out.println("ファイルパスを入力してください");
-			filePath = bufferedReader.readLine();
-			readFile(filePath, message);
-			viewPersonTalk();
+			String filePath = scan.nextLine();
+			List<String> allLinesList = readFile(filePath);
+
+			countMemberTalk(allLinesList);
+			showMemberTalkCount();
+
 			System.out.println("検索したい文字列を入力してください");
-			String message = bufferedReader.readLine();
-			readFile(filePath, message);
-			System.out.println("「" + message + "」は、" + messageCount + "回使われています");
+			String message = scan.nextLine();
+			countMessage(message, allLinesList);
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private static void readFile(String filePath, String message) throws IOException {
+	private static List<String> readFile(String filePath) throws IOException {
 		Path path = Paths.get(filePath);
-		allLines = Files.readAllLines(path, StandardCharsets.UTF_8);
-		for (String line : allLines) {
-			if (message == null) {
-				String[] splitWords = line.split("\\t");
-				if (splitWords.length >= 3) {
-					countPersonTalk(splitWords);
-				}
-			} else {
-				countMessage(message, line);
-			}
-		}
+		return Files.readAllLines(path, StandardCharsets.UTF_8);
 	}
 
-	private static void countPersonTalk(String[] splitWords) {
-		totalCount++;
-		if (personMap.get(splitWords[1]) == null) {
-			personMap.put(splitWords[1], 1);
-		} else {
-			personMap.put(splitWords[1], personMap.get(splitWords[1]) + 1);
-		}
+	private static void countMemberTalk(List<String> allLines) {
+		memberCountMap = allLines.stream().map(s -> s.split("\t")).filter(s -> s.length >= 3)
+				.collect(Collectors.groupingBy(s -> s[1], Collectors.counting()));
+		memberCountMap = sortMemberMap();
+		totalTalkCount = memberCountMap.values().stream().mapToLong(l -> l).sum();
 	}
 
-	private static void viewPersonTalk() {
+	private static void showMemberTalkCount() {
 		System.out.println("トーク履歴内のアカウントごとの発言数");
-		double rate = 0;
-		for (String key : personMap.keySet()) {
-			rate = personMap.get(key) / Double.parseDouble(String.valueOf(totalCount));
-			System.out.println(key + " : " + personMap.get(key) + " : " + dFormat.format(rate));
-		}
-		System.out.println("合計発言数 : " + totalCount);
+		memberCountMap.forEach((key, value) -> System.out.println(key + " : " + value + " : " + formatRate(value)));
+		System.out.println("合計発言数 ： " + totalTalkCount);
 	}
 
-	private static void countMessage(String message, String read) {
-		if (read.indexOf(message) >= 0) {
-			messageCount++;
-		}
+	private static void countMessage(String word, List<String> allList) {
+		long wordCount = allList.stream().filter(s -> s.indexOf(word) > 0).count();
+		System.out.println("「" + word + "」は、" + wordCount + "回使われています");
+	}
+
+	private static String formatRate(long value) {
+		DecimalFormat dFormat = new DecimalFormat("###.##%");
+		return dFormat.format(value / Double.parseDouble(String.valueOf(totalTalkCount)));
+	}
+
+	private static LinkedHashMap<String, Long> sortMemberMap() {
+		LinkedHashMap<String, Long> sortedMap = new LinkedHashMap<String, Long>();
+		ArrayList<Entry<String, Long>> entries = new ArrayList<>(memberCountMap.entrySet());
+		Collections.sort(entries, new Comparator<Entry<String, Long>>() {
+			@Override
+			public int compare(Entry<String, Long> e1, Entry<String, Long> e2) {
+				return e2.getValue().compareTo(e1.getValue());
+			}
+		});
+		entries.stream().forEach(e -> sortedMap.put(e.getKey(), e.getValue()));
+		return sortedMap;
 	}
 }
