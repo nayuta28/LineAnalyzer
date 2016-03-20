@@ -1,14 +1,11 @@
 package lineanalyzer;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,25 +36,23 @@ import java.util.stream.Collectors;
  */
 public class LineTalkHistoryAnalyzer {
 
-	private static Map<String, Long> memberCountMap = new LinkedHashMap<>();
-	private static Long totalTalkCount;
-
 	public static void main(String[] args) {
 
 		try (Scanner scan = new Scanner(System.in)) {
 
 			System.out.println("ファイルパスを入力してください");
-			String filePath = scan.nextLine();
-			// ファイルから全行を取得
-			List<String> allLinesList = readFile(filePath);
+			final String filePath = scan.nextLine();
+			final List<String> allLinesList = readAllLineFromFile(filePath);
 
-			// メンバーごとの発言数をカウント
-			countMemberTalk(allLinesList);
-			// 結果表示
-			outputMemberTalkCount();
+			// メンバーごとの発言数をカウントする
+			final Map<String, Long> memberCountMap = countMemberTalk(allLinesList);
+			// 合計発言数を集計する
+			final long totalCount = countTotalTalk(memberCountMap);
+			// 結果を表示する
+			outputMemberTalkCount(memberCountMap, totalCount);
 
 			System.out.println("検索したい文字列を入力してください");
-			String word = scan.nextLine();
+			final String word = scan.nextLine();
 			// 履歴内の単語をカウント
 			countWord(word, allLinesList);
 
@@ -66,50 +61,50 @@ public class LineTalkHistoryAnalyzer {
 		}
 	}
 
-	private static List<String> readFile(String filePath) throws IOException {
+	private static List<String> readAllLineFromFile(String filePath) throws IOException {
 		Path path = Paths.get(filePath);
-		return Files.readAllLines(path, StandardCharsets.UTF_8);
+		return Files.readAllLines(path);
 	}
 
-	private static void countMemberTalk(List<String> allLines) {
+	private static Map<String, Long> countMemberTalk(List<String> allLines) {
+		Map<String, Long> memberCountMap = new LinkedHashMap<>();
 		// 「時間 \t メンバー \t 発言」となっている行を抽出し、メンバーごとに発言数を集計する
-		memberCountMap = allLines.stream().map(s -> s.split("\t")).filter(s -> s.length >= 3)
-				.collect(Collectors.groupingBy(s -> s[1], Collectors.counting()));
-		// 発言数の昇順でソート
-		memberCountMap = sortMemberMap();
-		// 合計発言数を集計する
-		totalTalkCount = memberCountMap.values().stream().mapToLong(l -> l).sum();
+		memberCountMap = allLines.stream()
+								 .map(s -> s.split("\t"))
+								 .filter(s -> s.length >= 3)
+								 .collect(Collectors.groupingBy(s -> s[1], Collectors.counting()));
+		return memberCountMap;
+	}
+	
+	private static long countTotalTalk(Map<String, Long> memberCountMap) {
+		long totalTalkCount = memberCountMap.values().stream()
+											.mapToLong(talkCount -> talkCount).sum();
+		return totalTalkCount;
 	}
 
-	private static void outputMemberTalkCount() {
+	private static void outputMemberTalkCount(Map<String, Long> memberCountMap, long totalTalkCount) {
 		System.out.println("トーク履歴内のアカウントごとの発言数");
-		// 「メンバー名：発言数：発言率」で出力
-		memberCountMap.forEach((key, value) -> System.out.println(key + " : " + value + " : " + formatRate(value)));
-		System.out.println("合計発言数 ： " + totalTalkCount);
+		// 発言数の降順でソートして集計結果を表示する
+		memberCountMap.entrySet()
+					  .stream()
+					  .sorted(Collections.reverseOrder(Entry.comparingByValue()))
+					  .forEach(member -> 
+					   System.out.println(String.join(" : ", 
+		       		 				  				  member.getKey(),
+								 				  	  String.valueOf(member.getValue()),
+								 				  	  formatRate(member.getValue(),totalTalkCount))));
+		
+		System.out.println("合計発言数 ： ".concat(String.valueOf(totalTalkCount)));
 	}
-
-	private static void countWord(String word, List<String> allList) {
-		// 行内で指定された単語が使われているか集計
-		// TODO:同じ行で同単語が使われている場合の集計方法
-		long wordCount = allList.stream().filter(s -> s.indexOf(word) > 0).count();
-		System.out.println("「" + word + "」は、" + wordCount + "回使われています");
-	}
-
-	private static String formatRate(long value) {
+	
+	private static String formatRate(long memberTalkCount, long totalTalkCount) {
 		DecimalFormat dFormat = new DecimalFormat("###.##%");
-		return dFormat.format(value / Double.parseDouble(String.valueOf(totalTalkCount)));
+		return dFormat.format(memberTalkCount / Double.parseDouble(String.valueOf(totalTalkCount)));
 	}
 
-	private static LinkedHashMap<String, Long> sortMemberMap() {
-		LinkedHashMap<String, Long> sortedMap = new LinkedHashMap<String, Long>();
-		ArrayList<Entry<String, Long>> entries = new ArrayList<>(memberCountMap.entrySet());
-		Collections.sort(entries, new Comparator<Entry<String, Long>>() {
-			@Override
-			public int compare(Entry<String, Long> e1, Entry<String, Long> e2) {
-				return e2.getValue().compareTo(e1.getValue());
-			}
-		});
-		entries.stream().forEach(e -> sortedMap.put(e.getKey(), e.getValue()));
-		return sortedMap;
+	private static void countWord(String word, List<String> allLinesList) {
+		// 行内で指定された単語が使われているか集計
+		long wordCount = allLinesList.stream().filter(line -> line.indexOf(word) > 0).count();
+		System.out.println("「" + word + "」は、" + wordCount + "回使われています");
 	}
 }
